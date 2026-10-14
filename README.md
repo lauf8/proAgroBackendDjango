@@ -86,7 +86,7 @@ docker compose run --rm --entrypoint python web manage.py test accounts.test_fea
 docker compose run --rm --entrypoint python web manage.py test
 ```
 
-Expired blacklist records can be cleaned with `python manage.py flushexpiredtokens`. No scheduler is included. Only farm creation is implemented; farm listing, updates, deletion and laboratory CRUD endpoints are not included.
+Expired blacklist records can be cleaned with `python manage.py flushexpiredtokens`. No scheduler is included. Farm creation, listing and updates are implemented. Farm deletion and laboratory CRUD endpoints are not included.
 
 ## Farm creation
 
@@ -114,7 +114,7 @@ A successful request returns HTTP 201 with `id`, `name`, `owner_name`, `owner_em
 
 Owner email is normalized to lowercase. Case-insensitive duplicate detection occurs during validation; the `unique_user_email_case_insensitive` database constraint on `Lower(email)` also prevents concurrent duplicate inserts. Only known email uniqueness failures are translated to field errors; unrelated errors propagate after rollback. Existing email spelling and the JWT endpoints are preserved. Password validation uses the configured Django validators and the prospective user; hashing uses `create_user`.
 
-The response uses an active owner membership loaded with `select_related("user")` and `Prefetch`, avoiding additional owner lookup queries during serialization. No list, update or delete routes are provided.
+The response uses an active owner membership loaded with `select_related("user")` and `Prefetch`, avoiding additional owner lookup queries during serialization. Farm listing and updates are described below; no delete route is provided.
 
 The additional migration is `accounts/0002_user_email_case_insensitive`. Before applying it to another existing database, check for case-insensitive email duplicates and resolve them explicitly; the migration does not delete or merge users.
 
@@ -136,3 +136,29 @@ Authenticated users can send `POST /api/auth/change-password/` with `Authorizati
 ```
 
 The current password must match and the new password must pass Django's configured password validators. The endpoint updates only the authenticated user's password and returns HTTP 204 with an empty body. Invalid input returns HTTP 400; missing or invalid authentication returns HTTP 401. No user identifier is accepted to select another account. Both password fields are write-only.
+
+## List, edit and inactivate farms
+
+All operations require a JWT access token. Listing and creation require `IsSuperUser`. Editing ordinary farm fields allows either a superuser or a user with an active `FarmMembership` for the target farm, using `IsSuperUserOrFarmMember`. Only superusers may inactivate or reactivate a farm. Any membership role qualifies. A membership on another farm, an inactive membership or staff status alone does not grant edit access; those requests return HTTP 403. Missing or invalid authentication returns HTTP 401.
+
+| Method | Endpoint | Operation |
+| --- | --- | --- |
+| GET | `/api/v1/farms/` | List farms |
+| PATCH | `/api/v1/farms/<farm-id>/` | Update selected fields |
+| PUT | `/api/v1/farms/<farm-id>/` | Update farm data; name is required |
+
+Listing includes active and inactive farms by default, ordered by name and UUID. Filter with `?is_active=true` or `?is_active=false`. Results use DRF page-number pagination with `count`, `next`, `previous` and `results`; the default is 20 farms per page. `page_size` accepts up to 100, and `page` selects the page. Owner memberships and their users are prefetched to avoid a query per farm.
+
+Members can edit `name`, `owner_name`, `city`, `state`, `phone` and `notes`. Only superusers can change `is_active`. A member attempting to change it receives HTTP 403 and no fields from that request are saved. An unchanged `is_active` value is accepted but is not written by member updates. Responses retain the farm detail format, including `owner_email`. UUID and audit timestamps are read-only. These endpoints do not update the owner account, its credentials or the membership.
+
+To inactivate a farm, send the following as a superuser:
+
+```http
+PATCH /api/v1/farms/<farm-id>/
+Authorization: Bearer <access-token>
+Content-Type: application/json
+
+{"is_active": false}
+```
+
+The farm, its owner account, memberships and historical data remain in the database. Inactivation changes only `Farm.is_active`; it does not disable the owner user's login. Reactivate with `{"is_active": true}`. Successful updates return HTTP 200, validation errors return HTTP 400 and unknown farm UUIDs return HTTP 404. DELETE is unsupported and returns HTTP 405 for an authenticated superuser.

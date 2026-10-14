@@ -3,6 +3,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError
 from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied
 
 from accounts.models import FarmMembership
 from manage.models import Farm
@@ -74,3 +75,30 @@ class FarmDetailSerializer(serializers.ModelSerializer):
         else:
             membership = memberships[0] if memberships else None
         return membership.user.email if membership else None
+
+
+class FarmUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Farm
+        fields = (
+            "id", "name", "owner_name", "city", "state", "phone", "notes",
+            "is_active", "created_at", "updated_at",
+        )
+        read_only_fields = ("id", "created_at", "updated_at")
+
+    def validate_is_active(self, value):
+        if not self.context["request"].user.is_superuser and value != self.instance.is_active:
+            raise PermissionDenied({"is_active": ["Only superusers can change the farm status."]})
+        return value
+
+    def update(self, instance, validated_data):
+        if not self.context["request"].user.is_superuser:
+            validated_data.pop("is_active", None)
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+        instance.save(update_fields=[*validated_data, "updated_at"])
+        return instance
+
+
+class FarmListQuerySerializer(serializers.Serializer):
+    is_active = serializers.BooleanField(required=False)

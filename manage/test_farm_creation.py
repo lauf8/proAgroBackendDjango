@@ -225,8 +225,8 @@ class FarmCreationFeatureTests(APITestCase):
         self.assertIn("state", response.data)
         self.assert_no_creation()
 
-    def test_endpoint_does_not_support_other_methods(self):
-        for method in ("get", "put", "patch", "delete"):
+    def test_collection_does_not_support_update_or_delete(self):
+        for method in ("put", "patch", "delete"):
             with self.subTest(method=method):
                 response = getattr(self.client, method)(self.url)
                 self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
