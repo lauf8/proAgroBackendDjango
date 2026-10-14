@@ -1,5 +1,6 @@
-sleep 4
-python manage.py collectstatic --no-input
-python manage.py makemigrations
-python manage.py migrate
+#!/bin/sh
+set -eu
+
+python manage.py migrate --noinput
+python manage.py collectstatic --noinput
 exec "$@"

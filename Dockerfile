@@ -1,25 +1,11 @@
 FROM python:3.10-slim
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
-
-RUN apt-get update && apt-get install -y \
-    postgresql-client
-    
-RUN apt-get update && apt-get install -y libpq-dev
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /code
-
-COPY requirements.txt /code/
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
-
-COPY . /code/
-
-ENV STATIC_ROOT=/code/staticfiles
-
-COPY ./entrypoint.sh /entrypoint.sh
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
-
 ENTRYPOINT ["/entrypoint.sh"]
 EXPOSE 8000
-
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "core.wsgi:application"]
