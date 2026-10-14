@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
+from django.db.models.functions import Lower
 from config.models import TimeStampedModel
 from .managers import UserManager
 
@@ -14,6 +15,11 @@ class User(TimeStampedModel, AbstractBaseUser, PermissionsMixin):
     objects = UserManager()
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["name"]
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(Lower("email"), name="unique_user_email_case_insensitive"),
+        ]
 
     def clean(self):
         super().clean()

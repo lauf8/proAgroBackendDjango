@@ -1,8 +1,9 @@
-from rest_framework.permissions import AllowAny
+from rest_framework import status
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenBlacklistView, TokenObtainPairView, TokenRefreshView
-from .serializers import EmailTokenObtainPairSerializer
+from .serializers import EmailTokenObtainPairSerializer, PasswordChangeSerializer
 
 
 class LoginView(TokenObtainPairView):
@@ -26,3 +27,15 @@ class CurrentUserView(APIView):
             "email": request.user.email,
             "is_superuser": request.user.is_superuser,
         })
+
+
+class PasswordChangeView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        serializer = PasswordChangeSerializer(
+            instance=request.user, data=request.data, context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)

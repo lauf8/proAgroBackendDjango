@@ -86,4 +86,53 @@ docker compose run --rm --entrypoint python web manage.py test accounts.test_fea
 docker compose run --rm --entrypoint python web manage.py test
 ```
 
-Expired blacklist records can be cleaned with `python manage.py flushexpiredtokens`. No scheduler is included. No farm or laboratory CRUD endpoints are implemented.
+Expired blacklist records can be cleaned with `python manage.py flushexpiredtokens`. No scheduler is included. Only farm creation is implemented; farm listing, updates, deletion and laboratory CRUD endpoints are not included.
+
+## Farm creation
+
+`POST /api/v1/farms/` requires `Authorization: Bearer <access-token>` from an authenticated superuser. Regular users, including staff users without `is_superuser`, receive HTTP 403; requests without authentication receive HTTP 401. The explicit `IsSuperUser` permission checks the database user, not the JWT claim.
+
+```json
+{
+  "name": "Boa Vista Farm",
+  "owner_name": "John Silva",
+  "city": "Cacule",
+  "state": "BA",
+  "phone": "77999999999",
+  "notes": "",
+  "admin": {
+    "name": "John Silva",
+    "email": "john@example.com",
+    "password": "StrongPassword123!"
+  }
+}
+```
+
+A successful request returns HTTP 201 with `id`, `name`, `owner_name`, `owner_email`, `city`, `state`, `phone`, `notes`, `is_active`, `created_at` and `updated_at`. Neither the nested `admin` object nor its password is returned. Invalid data returns the standard DRF HTTP 400 field error format.
+
+`manage.services.farm_service.create_farm_with_owner` creates the user through `UserManager`, then the farm, then its active owner membership inside a single atomic transaction. Failure at any step rolls back all new records. Users receive `is_superuser=False` and `is_staff=False`; farms and memberships are active. Client-supplied privilege, permission, role and audit fields cannot override backend values.
+
+Owner email is normalized to lowercase. Case-insensitive duplicate detection occurs during validation; the `unique_user_email_case_insensitive` database constraint on `Lower(email)` also prevents concurrent duplicate inserts. Only known email uniqueness failures are translated to field errors; unrelated errors propagate after rollback. Existing email spelling and the JWT endpoints are preserved. Password validation uses the configured Django validators and the prospective user; hashing uses `create_user`.
+
+The response uses an active owner membership loaded with `select_related("user")` and `Prefetch`, avoiding additional owner lookup queries during serialization. No list, update or delete routes are provided.
+
+The additional migration is `accounts/0002_user_email_case_insensitive`. Before applying it to another existing database, check for case-insensitive email duplicates and resolve them explicitly; the migration does not delete or merge users.
+
+Run the farm creation feature tests with:
+
+```bash
+docker compose run --rm --entrypoint python web manage.py test manage.test_farm_creation
+```
+
+## Change own password
+
+Authenticated users can send `POST /api/auth/change-password/` with `Authorization: Bearer <access-token>` and the following JSON body:
+
+```json
+{
+  "current_password": "OriginalPassword123!",
+  "new_password": "UpdatedPassword456!"
+}
+```
+
+The current password must match and the new password must pass Django's configured password validators. The endpoint updates only the authenticated user's password and returns HTTP 204 with an empty body. Invalid input returns HTTP 400; missing or invalid authentication returns HTTP 401. No user identifier is accepted to select another account. Both password fields are write-only.
