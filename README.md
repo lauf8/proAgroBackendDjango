@@ -234,3 +234,25 @@ config/
 ```
 
 Each package contains `__init__.py`. Run all tests with `python manage.py test`, or select an app package with `python manage.py test accounts.tests`, `python manage.py test manage.tests` or `python manage.py test laboratory.tests`.
+
+## Laboratory BREAD API
+
+JWT-authenticated endpoints under `/api/v1/laboratory/`:
+
+| Resource | Collection |
+| --- | --- |
+| Microorganism | `microorganisms/` |
+| SampleBatch | `sample-batches/` |
+| Sample | `samples/` |
+| SampleResult | `sample-results/` |
+| Analysis | `analyses/` |
+| AnalysisRevision | `analysis-revisions/` |
+| Report | `reports/` |
+
+Collections support GET (browse) and POST (add). Append `<uuid>/` for GET (read), PUT/PATCH (edit), and DELETE. Only superusers can write, including through Django Admin; staff status and farm roles do not grant write access. Regular users can read records belonging to farms where they have an active membership. Microorganisms are visible to these users only when referenced by results from their farms. Records outside their scope return 404. Anonymous requests return 401 and unauthorized writes return 403.
+
+Lists use `page` and `page_size`, with 20 records by default and a maximum of 100, ordered by creation time and UUID. Creator fields, UUIDs and timestamps are assigned by the server. Revision versions and analysis current versions are managed automatically. Editing an analysis revision creates a new version and returns its new UUID; the original revision and reports referencing it remain intact. Revisions cannot be moved to another analysis. Protected deletions return 409; model validation errors return 400.
+
+```bash
+docker compose exec -T web python manage.py test laboratory --noinput
+```
