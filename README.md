@@ -82,7 +82,7 @@ Rebuild the container after adding dependencies and apply the built-in blacklist
 docker compose build web
 docker compose run --rm --entrypoint python web manage.py migrate
 docker compose run --rm --entrypoint python web manage.py check
-docker compose run --rm --entrypoint python web manage.py test accounts.test_features
+docker compose run --rm --entrypoint python web manage.py test accounts.tests.test_authentication
 docker compose run --rm --entrypoint python web manage.py test
 ```
 
@@ -121,7 +121,7 @@ The additional migration is `accounts/0002_user_email_case_insensitive`. Before 
 Run the farm creation feature tests with:
 
 ```bash
-docker compose run --rm --entrypoint python web manage.py test manage.test_farm_creation
+docker compose run --rm --entrypoint python web manage.py test manage.tests.test_farm_creation
 ```
 
 ## Change own password
@@ -200,5 +200,37 @@ Successful creation returns HTTP 201, reads and edits return HTTP 200, and succe
 Cow deletion respects existing `PROTECT` references. Cows with samples or milking line items return HTTP 409 with a `detail` error; the cow and related records remain intact. Cow deletion does not delete the farm, its users or memberships. Farm DELETE remains unsupported.
 
 ```bash
-docker compose run --rm --entrypoint python web manage.py test manage.test_cow_management
+docker compose run --rm --entrypoint python web manage.py test manage.tests.test_cow_management
 ```
+
+## App module layout
+
+Tests, views and serializers live in packages inside their owning app. URL paths and permissions are unchanged.
+
+```text
+accounts/
+  views/auth_views.py
+  serializers/auth_serializers.py
+  tests/test_models.py
+  tests/test_authentication.py
+  tests/test_password_change.py
+manage/
+  api/permissions.py
+  api/urls.py
+  views/farm_views.py
+  views/cow_views.py
+  serializers/farm_serializers.py
+  serializers/cow_serializers.py
+  services/farm_service.py
+  services/cow_service.py
+  tests/test_models.py
+  tests/test_farm_creation.py
+  tests/test_farm_management.py
+  tests/test_cow_management.py
+laboratory/
+  tests/test_models.py
+config/
+  tests/test_startup.py
+```
+
+Each package contains `__init__.py`. Run all tests with `python manage.py test`, or select an app package with `python manage.py test accounts.tests`, `python manage.py test manage.tests` or `python manage.py test laboratory.tests`.

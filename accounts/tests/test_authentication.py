@@ -5,7 +5,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
-from .models import User
+from accounts.models import User
 
 
 class JWTAuthenticationFeatureTests(APITestCase):

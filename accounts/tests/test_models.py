@@ -3,7 +3,7 @@ from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.utils import timezone
 from manage.models import Farm
-from .models import FarmMembership, User
+from accounts.models import FarmMembership, User
 
 
 class AccountTests(TestCase):

@@ -5,8 +5,8 @@ from django.db.models.deletion import ProtectedError
 from django.test import TestCase
 from accounts.models import User
 from manage.models import Cow, Farm
-from .models import Analysis, AnalysisRevision, Microorganism, Report, Sample, SampleBatch, SampleResult
-from .services import create_analysis_revision
+from laboratory.models import Analysis, AnalysisRevision, Microorganism, Report, Sample, SampleBatch, SampleResult
+from laboratory.services import create_analysis_revision
 
 
 class LaboratoryTests(TestCase):

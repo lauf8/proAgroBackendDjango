@@ -3,7 +3,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenBlacklistView, TokenObtainPairView, TokenRefreshView
-from .serializers import EmailTokenObtainPairSerializer, PasswordChangeSerializer
+from accounts.serializers.auth_serializers import EmailTokenObtainPairSerializer, PasswordChangeSerializer
 
 
 class LoginView(TokenObtainPairView):

@@ -1,7 +1,7 @@
 from django.urls import path
 
-from .cow_views import CowDetailView, CowListCreateView
-from .views import FarmListCreateView, FarmUpdateView
+from manage.views.cow_views import CowDetailView, CowListCreateView
+from manage.views.farm_views import FarmListCreateView, FarmUpdateView
 
 app_name = "manage"
 

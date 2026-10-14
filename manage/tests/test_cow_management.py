@@ -287,7 +287,7 @@ class CowManagementFeatureTests(APITestCase):
             Cow.objects.create(farm=farm, name="Competing cow", identifier=cow_data["identifier"])
             return create_cow(farm=farm, cow_data=cow_data)
 
-        with patch("manage.api.cow_serializers.create_cow", side_effect=competing_creation):
+        with patch("manage.serializers.cow_serializers.create_cow", side_effect=competing_creation):
             response = self.client.post(self.list_url, self.payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("identifier", response.data)
@@ -298,7 +298,7 @@ class CowManagementFeatureTests(APITestCase):
             Cow.objects.create(farm=cow.farm, name="Competing cow", identifier=cow_data["identifier"])
             return update_cow(cow=cow, cow_data=cow_data)
 
-        with patch("manage.api.cow_serializers.update_cow", side_effect=competing_update):
+        with patch("manage.serializers.cow_serializers.update_cow", side_effect=competing_update):
             response = self.client.patch(self.detail_url, {"name": "Changed", "identifier": "A2"}, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.cow.refresh_from_db()
@@ -306,7 +306,7 @@ class CowManagementFeatureTests(APITestCase):
         self.assertEqual(self.cow.identifier, "A1")
 
     def test_unrelated_database_errors_are_not_hidden(self):
-        with patch("manage.api.cow_serializers.create_cow", side_effect=IntegrityError("Unexpected failure")), self.assertRaises(IntegrityError):
+        with patch("manage.serializers.cow_serializers.create_cow", side_effect=IntegrityError("Unexpected failure")), self.assertRaises(IntegrityError):
             self.client.post(self.list_url, self.payload, format="json")
         self.assertEqual(Cow.objects.count(), 2)
 

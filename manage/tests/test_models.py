@@ -2,7 +2,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
 from django.test import TestCase
-from .models import Cow, Farm, MilkingLineGroup, MilkingLineItem
+from manage.models import Cow, Farm, MilkingLineGroup, MilkingLineItem
 
 
 class ManagementTests(TestCase):

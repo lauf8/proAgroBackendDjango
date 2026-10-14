@@ -8,7 +8,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.test import APITestCase
 
 from accounts.models import FarmMembership, User
-from manage.api.serializers import FarmCreateSerializer, FarmDetailSerializer
+from manage.serializers.farm_serializers import FarmCreateSerializer, FarmDetailSerializer
 from manage.models import Farm
 from manage.services.farm_service import create_farm_with_owner
 
@@ -247,7 +247,7 @@ class FarmCreationFeatureTests(APITestCase):
             return create_farm_with_owner(farm_data, owner_data)
 
         with patch(
-            "manage.api.serializers.create_farm_with_owner", side_effect=competing_creation,
+            "manage.serializers.farm_serializers.create_farm_with_owner", side_effect=competing_creation,
         ):
             response = self.client.post(self.url, self.payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

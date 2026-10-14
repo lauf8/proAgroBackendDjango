@@ -10,8 +10,8 @@ from rest_framework.response import Response
 
 from manage.models import Cow, Farm
 from manage.services.cow_service import delete_cow
-from .cow_serializers import CowDetailSerializer, CowListQuerySerializer, CowWriteSerializer
-from .permissions import IsSuperUserOrFarmMember
+from manage.serializers.cow_serializers import CowDetailSerializer, CowListQuerySerializer, CowWriteSerializer
+from manage.api.permissions import IsSuperUserOrFarmMember
 
 
 class CowDeletionConflict(APIException):

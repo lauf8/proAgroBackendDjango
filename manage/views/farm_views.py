@@ -6,8 +6,8 @@ from rest_framework.response import Response
 
 from accounts.models import FarmMembership
 from manage.models import Farm
-from .permissions import IsSuperUser, IsSuperUserOrFarmMember
-from .serializers import (
+from manage.api.permissions import IsSuperUser, IsSuperUserOrFarmMember
+from manage.serializers.farm_serializers import (
     FarmCreateSerializer,
     FarmDetailSerializer,
     FarmListQuerySerializer,
