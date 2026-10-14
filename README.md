@@ -162,3 +162,43 @@ Content-Type: application/json
 ```
 
 The farm, its owner account, memberships and historical data remain in the database. Inactivation changes only `Farm.is_active`; it does not disable the owner user's login. Reactivate with `{"is_active": true}`. Successful updates return HTTP 200, validation errors return HTTP 400 and unknown farm UUIDs return HTTP 404. DELETE is unsupported and returns HTTP 405 for an authenticated superuser.
+
+## Cow BREAD
+
+Cow endpoints require JWT authentication and either a superuser or an active membership on the farm in the URL. As with ordinary farm editing, any active membership role qualifies. Access is checked against current database memberships on every request. Farm status activation and inactivation remain restricted to superusers on the farm endpoint.
+
+| Method | Endpoint | Operation |
+| --- | --- | --- |
+| GET | `/api/v1/farms/<farm-id>/cows/` | Browse cows on the farm |
+| POST | `/api/v1/farms/<farm-id>/cows/` | Add a cow |
+| GET | `/api/v1/farms/<farm-id>/cows/<cow-id>/` | Read a cow |
+| PUT | `/api/v1/farms/<farm-id>/cows/<cow-id>/` | Edit cow data; name and identifier are required |
+| PATCH | `/api/v1/farms/<farm-id>/cows/<cow-id>/` | Edit selected fields |
+| DELETE | `/api/v1/farms/<farm-id>/cows/<cow-id>/` | Delete a cow without protected references |
+
+Creation example:
+
+```json
+{
+  "name": "Daisy",
+  "identifier": "A2",
+  "birth_date": "2022-05-01",
+  "breed": "Holstein",
+  "status": "active",
+  "notes": "New cow"
+}
+```
+
+`name` and `identifier` are required for creation. Status defaults to `active`; allowed values are `active`, `dry`, `sold` and `deceased`. Birth date is optional and nullable. The farm is assigned from the URL and cannot be changed by the payload. UUID and audit timestamps are read-only. Responses include `id`, `farm`, `name`, `identifier`, `birth_date`, `breed`, `status`, `notes`, `created_at` and `updated_at`.
+
+Identifiers are unique within each farm, preserving the existing database constraint. The same identifier can be used on different farms. Duplicate validation errors, including conflicting concurrent writes, return HTTP 400 with an `identifier` error. Cow writes run through `manage/services/cow_service.py` in atomic transactions, and updates write only validated editable fields.
+
+Browse is ordered by name and UUID and uses the same pagination format as farm listing: 20 records per page by default, with `page` and `page_size` up to 100. Filter by `?status=dry` or search names and identifiers with `?search=daisy`; filters may be combined.
+
+Successful creation returns HTTP 201, reads and edits return HTTP 200, and successful deletion returns HTTP 204 with an empty body. Missing authentication returns HTTP 401; no active membership on the target farm returns HTTP 403. Unknown cows, or cows belonging to another farm accessed through an authorized farm URL, return HTTP 404.
+
+Cow deletion respects existing `PROTECT` references. Cows with samples or milking line items return HTTP 409 with a `detail` error; the cow and related records remain intact. Cow deletion does not delete the farm, its users or memberships. Farm DELETE remains unsupported.
+
+```bash
+docker compose run --rm --entrypoint python web manage.py test manage.test_cow_management
+```
