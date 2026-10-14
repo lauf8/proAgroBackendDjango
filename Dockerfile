@@ -12,14 +12,14 @@ COPY requirements.txt /code/
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
-# COPY . /code/
+COPY . /code/
 
-# ENV STATIC_ROOT=/code/staticfiles
+ENV STATIC_ROOT=/code/staticfiles
 
-# COPY ./entrypoint.sh /entrypoint.sh
-# RUN chmod +x /entrypoint.sh
+COPY ./entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-# ENTRYPOINT ["/entrypoint.sh"]
-# EXPOSE 8000
+ENTRYPOINT ["/entrypoint.sh"]
+EXPOSE 8000
 
-# CMD ["gunicorn", "--bind", "0.0.0.0:8000", "core.wsgi:application"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "core.wsgi:application"]
