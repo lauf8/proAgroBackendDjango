@@ -15,6 +15,8 @@ o container aguarda o banco ficar disponível, aplica as migrações e coleta os
 arquivos estáticos antes de iniciar o Gunicorn.
 
 Configure `SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS` e as credenciais `DB_*` no `.env`.
+Use uma chave aleatória e única em `SECRET_KEY`. O `.env.example` contém apenas
+valores de exemplo; o `.env` local não é versionado.
 Para outro domínio ou porta, ajuste também `CSRF_TRUSTED_ORIGINS` com a URL completa.
 Dentro do Compose, mantenha `DB_HOST=db` e `DB_PORT=5432`.
 As credenciais do PostgreSQL são aplicadas na criação inicial do volume; alterar
