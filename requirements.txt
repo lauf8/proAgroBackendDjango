@@ -2,3 +2,5 @@ Django==5.2.18
 gunicorn==23.0.0
 psycopg2-binary==2.9.10
 python-dotenv==1.0.1
+djangorestframework==3.16.1
+djangorestframework-simplejwt==5.5.1
