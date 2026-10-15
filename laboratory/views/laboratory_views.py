@@ -1,3 +1,4 @@
+from django.db.models import Q
 from django.db.models.deletion import ProtectedError
 from rest_framework import status
 from rest_framework.exceptions import APIException
@@ -5,6 +6,7 @@ from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIV
 from rest_framework.pagination import PageNumberPagination
 
 from laboratory.api.permissions import IsSuperUserOrReadOnly
+from laboratory.serializers.sample_filters import SampleListQuerySerializer
 from laboratory.models import Analysis, AnalysisRevision, Microorganism, Sample, SampleBatch, SampleResult
 from laboratory.serializers.laboratory_serializers import (
     AnalysisSerializer, AnalysisRevisionSerializer, MicroorganismSerializer,
@@ -14,7 +16,7 @@ from laboratory.serializers.laboratory_serializers import (
 
 class LaboratoryDeletionConflict(APIException):
     status_code = status.HTTP_409_CONFLICT
-    default_detail = "This record has protected related records and cannot be deleted."
+    default_detail = "Este registro possui vínculos protegidos e não pode ser excluído."
     default_code = "laboratory_has_related_records"
 
 
@@ -81,6 +83,19 @@ class SampleListCreateView(LaboratoryScopeMixin, ListCreateAPIView):
     model = Sample
     serializer_class = SampleSerializer
     farm_path = "cow__farm"
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        query = SampleListQuerySerializer(data=self.request.query_params)
+        query.is_valid(raise_exception=True)
+        filters = query.validated_data
+        if filters.get("farm"):
+            queryset = queryset.filter(batch__farm_id=filters["farm"])
+        if filters.get("cow"):
+            queryset = queryset.filter(cow_id=filters["cow"])
+        if filters.get("search"):
+            queryset = queryset.filter(Q(cow__name__icontains=filters["search"]) | Q(cow__identifier__icontains=filters["search"]))
+        return queryset.select_related("batch__farm")
 
 
 class SampleDetailView(LaboratoryScopeMixin, RetrieveUpdateDestroyAPIView):

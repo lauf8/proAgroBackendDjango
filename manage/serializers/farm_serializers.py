@@ -19,7 +19,7 @@ class FarmOwnerCreateSerializer(serializers.Serializer):
         User = get_user_model()
         email = User.objects.normalize_email(value).lower()
         if User.objects.filter(email__iexact=email).exists():
-            raise serializers.ValidationError("A user with this email already exists.")
+            raise serializers.ValidationError("Já existe um usuário com este e-mail.")
         return email
 
     def validate(self, attrs):
@@ -50,7 +50,7 @@ class FarmCreateSerializer(serializers.ModelSerializer):
             constraint_name = getattr(getattr(error.__cause__, "diag", None), "constraint_name", None)
             if constraint_name in ("unique_user_email_case_insensitive", "accounts_user_email_key"):
                 raise serializers.ValidationError({
-                    "admin": {"email": ["A user with this email already exists."]},
+                    "admin": {"email": ["Já existe um usuário com este e-mail."]},
                 }) from error
             raise
 
@@ -88,7 +88,7 @@ class FarmUpdateSerializer(serializers.ModelSerializer):
 
     def validate_is_active(self, value):
         if not self.context["request"].user.is_superuser and value != self.instance.is_active:
-            raise PermissionDenied({"is_active": ["Only superusers can change the farm status."]})
+            raise PermissionDenied({"is_active": ["Somente superusuários podem alterar a situação da fazenda."]})
         return value
 
     def update(self, instance, validated_data):

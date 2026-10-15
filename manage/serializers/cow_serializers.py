@@ -30,7 +30,7 @@ class CowWriteSerializer(serializers.ModelSerializer):
         if self.instance is not None:
             cows = cows.exclude(pk=self.instance.pk)
         if cows.exists():
-            raise serializers.ValidationError("A cow with this identifier already exists on this farm.")
+            raise serializers.ValidationError("Já existe uma vaca com este brinco nesta fazenda.")
         return value
 
     def create(self, validated_data):
@@ -46,7 +46,7 @@ class CowWriteSerializer(serializers.ModelSerializer):
             constraint_name = getattr(getattr(error.__cause__, "diag", None), "constraint_name", None)
             if constraint_name == "unique_farm_cow_identifier":
                 raise serializers.ValidationError({
-                    "identifier": ["A cow with this identifier already exists on this farm."],
+                    "identifier": ["Já existe uma vaca com este brinco nesta fazenda."],
                 }) from error
             raise
 

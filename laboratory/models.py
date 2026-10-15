@@ -41,11 +41,11 @@ class SampleBatch(TimeStampedModel):
     def clean(self):
         super().clean()
         if self.received_at and self.collected_at and self.received_at < self.collected_at:
-            raise ValidationError({"received_at": "Receipt cannot precede collection."})
+            raise ValidationError({"received_at": "O recebimento não pode ser anterior à coleta."})
         if not self._state.adding:
             previous_farm = type(self).objects.filter(pk=self.pk).values_list("farm_id", flat=True).first()
             if previous_farm != self.farm_id and (self.samples.exists() or self.analyses.exists() or self.reports.exists()):
-                raise ValidationError({"farm": "A batch with laboratory history cannot be moved to another farm."})
+                raise ValidationError({"farm": "Um lote com histórico laboratorial não pode ser transferido para outra fazenda."})
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -76,7 +76,7 @@ class Sample(TimeStampedModel):
     def clean(self):
         super().clean()
         if self.cow_id and self.batch_id and self.cow.farm_id != self.batch.farm_id:
-            raise ValidationError({"cow": "The cow and batch must belong to the same farm."})
+            raise ValidationError({"cow": "A vaca e o lote devem pertencer à mesma fazenda."})
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -116,7 +116,7 @@ class SampleResult(TimeStampedModel):
     def clean(self):
         super().clean()
         if self.result_type == self.ResultType.POSITIVE and not self.microorganism_id and not self.identified_name.strip():
-            raise ValidationError({"identified_name": "Positive results require an organism."})
+            raise ValidationError({"identified_name": "Resultados positivos exigem a identificação de um microrganismo."})
 
     def save(self, *args, **kwargs):
         self.identified_name = self.identified_name.strip()
@@ -169,7 +169,7 @@ class AnalysisRevision(TimeStampedModel):
         with transaction.atomic(using=database):
             analysis = Analysis.objects.using(database).select_for_update().get(pk=self.analysis_id)
             if not self._state.adding or type(self).objects.using(database).filter(pk=self.pk).exists():
-                raise ValidationError("Existing analysis revisions cannot be modified.")
+                raise ValidationError("Revisões de análise existentes não podem ser alteradas.")
             self.full_clean()
             result = super().save(*args, **kwargs)
             if analysis.current_version < self.version:
@@ -207,14 +207,14 @@ class Report(TimeStampedModel):
     def clean(self):
         super().clean()
         if self.analysis_revision_id and self.batch_id and self.analysis_revision.analysis.batch_id != self.batch_id:
-            raise ValidationError({"analysis_revision": "The revision and report must belong to the same batch."})
+            raise ValidationError({"analysis_revision": "A revisão e o relatório devem pertencer ao mesmo lote."})
 
     def save(self, *args, **kwargs):
         with transaction.atomic():
             SampleBatch.objects.select_for_update().get(pk=self.batch_id)
             previous = type(self).objects.filter(pk=self.pk).first()
             if previous and previous.status == self.Status.PUBLISHED:
-                raise ValidationError("Published reports cannot be modified.")
+                raise ValidationError("Relatórios publicados não podem ser alterados.")
             if self._state.adding and not previous:
                 latest = type(self).objects.filter(batch_id=self.batch_id).aggregate(value=models.Max("version"))["value"] or 0
                 self.version = max(self.version, latest + 1)
@@ -225,7 +225,7 @@ class Report(TimeStampedModel):
         with transaction.atomic():
             current = type(self).objects.select_for_update().get(pk=self.pk)
             if current.status != self.Status.DRAFT:
-                raise ValidationError("Only draft reports can be deleted.")
+                raise ValidationError("Somente relatórios em rascunho podem ser excluídos.")
             return super().delete(*args, **kwargs)
 
     def __str__(self):

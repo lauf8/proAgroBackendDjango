@@ -33,6 +33,7 @@ class SampleBatchSerializer(LaboratorySerializer):
 
 
 class SampleSerializer(LaboratorySerializer):
+    farm_name = serializers.CharField(source="batch.farm.name", read_only=True)
     cow_name = serializers.CharField(source="cow.name", read_only=True)
     cow_identifier = serializers.CharField(source="cow.identifier", read_only=True)
     batch_title = serializers.CharField(source="batch.title", read_only=True)
@@ -72,7 +73,7 @@ class AnalysisRevisionSerializer(LaboratorySerializer):
 
     def validate(self, attrs):
         if self.instance and attrs.get("analysis", self.instance.analysis) != self.instance.analysis:
-            raise serializers.ValidationError({"analysis": "A revision cannot be moved to another analysis."})
+            raise serializers.ValidationError({"analysis": "Uma revisão não pode ser transferida para outra análise."})
         return attrs
 
     def create(self, validated_data):

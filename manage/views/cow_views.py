@@ -16,7 +16,7 @@ from manage.api.permissions import IsSuperUserOrFarmMember
 
 class CowDeletionConflict(APIException):
     status_code = status.HTTP_409_CONFLICT
-    default_detail = "This cow has related records and cannot be deleted."
+    default_detail = "Esta vaca possui registros vinculados e não pode ser excluída."
     default_code = "cow_has_related_records"
 
 

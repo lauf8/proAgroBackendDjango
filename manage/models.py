@@ -71,7 +71,7 @@ class MilkingLineItem(TimeStampedModel):
     def clean(self):
         super().clean()
         if self.cow_id and self.group_id and self.cow.farm_id != self.group.farm_id:
-            raise ValidationError({"cow": "The cow and group must belong to the same farm."})
+            raise ValidationError({"cow": "A vaca e o grupo devem pertencer à mesma fazenda."})
 
     def save(self, *args, **kwargs):
         self.full_clean()

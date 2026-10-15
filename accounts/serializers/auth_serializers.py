@@ -20,7 +20,7 @@ class PasswordChangeSerializer(serializers.Serializer):
 
     def validate_current_password(self, value):
         if not self.instance.check_password(value):
-            raise serializers.ValidationError("The current password is incorrect.")
+            raise serializers.ValidationError("A senha atual está incorreta.")
         return value
 
     def validate_new_password(self, value):
