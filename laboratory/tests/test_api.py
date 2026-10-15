@@ -40,8 +40,8 @@ class LaboratoryAPITests(APITestCase):
             with self.subTest(resource=resource):
                 response = self.client.get(self.url(resource))
                 self.assertEqual(response.status_code, 200)
-                self.assertEqual([row['id'] for row in response.data['results']], [str(record.pk)])
-                self.assertEqual(self.client.get(self.url(resource, record)).status_code, 200)
+                self.assertEqual([row['id'] for row in response.data['results']], [] if resource == 'reports' else [str(record.pk)])
+                self.assertEqual(self.client.get(self.url(resource, record)).status_code, 404 if resource == 'reports' else 200)
                 self.assertEqual(self.client.get(self.url(resource, self.other_records[resource])).status_code, 404)
                 self.assertEqual(self.client.post(self.url(resource), {}, format='json').status_code, 403)
                 for method in ('put', 'patch', 'delete'):
@@ -81,7 +81,7 @@ class LaboratoryAPITests(APITestCase):
                     self.assertNotEqual(edited.data['id'], response.data['id'])
                     self.assertEqual(self.client.get(url).data['summary'], 'New')
                     self.client.delete(reverse('laboratory:analysis_revisions_detail', kwargs={'pk': edited.data['id']}))
-                self.assertEqual(self.client.delete(url).status_code, 204)
+                self.assertEqual(self.client.delete(url).status_code, 405 if resource == 'reports' else 204)
 
     def test_validation_and_protected_deletion(self):
         self.client.force_authenticate(self.admin)

@@ -76,3 +76,17 @@ class FarmUpdateView(FarmQuerysetMixin, UpdateAPIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(FarmDetailSerializer(farm, context=self.get_serializer_context()).data)
+
+
+class FarmOptionsView(FarmQuerysetMixin, ListCreateAPIView):
+    http_method_names = ("get", "head", "options")
+    pagination_class = FarmPagination
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if not self.request.user.is_superuser:
+            queryset = queryset.filter(memberships__user=self.request.user, memberships__is_active=True).distinct()
+        return queryset
+
+    def get_serializer_class(self):
+        return FarmDetailSerializer

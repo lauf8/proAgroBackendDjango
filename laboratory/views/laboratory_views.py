@@ -5,10 +5,10 @@ from rest_framework.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIV
 from rest_framework.pagination import PageNumberPagination
 
 from laboratory.api.permissions import IsSuperUserOrReadOnly
-from laboratory.models import Analysis, AnalysisRevision, Microorganism, Report, Sample, SampleBatch, SampleResult
+from laboratory.models import Analysis, AnalysisRevision, Microorganism, Sample, SampleBatch, SampleResult
 from laboratory.serializers.laboratory_serializers import (
     AnalysisSerializer, AnalysisRevisionSerializer, MicroorganismSerializer,
-    ReportSerializer, SampleSerializer, SampleBatchSerializer, SampleResultSerializer,
+    SampleSerializer, SampleBatchSerializer, SampleResultSerializer,
 )
 
 
@@ -29,7 +29,12 @@ class LaboratoryScopeMixin:
     pagination_class = LaboratoryPagination
 
     def get_queryset(self):
-        queryset = self.model.objects.all()
+        related = {
+            SampleBatch: ("farm",), Sample: ("batch", "cow"),
+            SampleResult: ("sample", "microorganism"), Analysis: ("batch",),
+            AnalysisRevision: ("analysis__batch",),
+        }
+        queryset = self.model.objects.select_related(*related.get(self.model, ()))
         if not self.request.user.is_superuser:
             queryset = queryset.filter(**{
                 f"{self.farm_path}__memberships__user": self.request.user,
@@ -118,15 +123,3 @@ class AnalysisRevisionDetailView(LaboratoryScopeMixin, RetrieveUpdateDestroyAPIV
     model = AnalysisRevision
     serializer_class = AnalysisRevisionSerializer
     farm_path = "analysis__batch__farm"
-
-
-class ReportListCreateView(LaboratoryScopeMixin, ListCreateAPIView):
-    model = Report
-    serializer_class = ReportSerializer
-    farm_path = "batch__farm"
-
-
-class ReportDetailView(LaboratoryScopeMixin, RetrieveUpdateDestroyAPIView):
-    model = Report
-    serializer_class = ReportSerializer
-    farm_path = "batch__farm"

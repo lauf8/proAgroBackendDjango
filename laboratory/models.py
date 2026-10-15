@@ -42,6 +42,10 @@ class SampleBatch(TimeStampedModel):
         super().clean()
         if self.received_at and self.collected_at and self.received_at < self.collected_at:
             raise ValidationError({"received_at": "Receipt cannot precede collection."})
+        if not self._state.adding:
+            previous_farm = type(self).objects.filter(pk=self.pk).values_list("farm_id", flat=True).first()
+            if previous_farm != self.farm_id and (self.samples.exists() or self.analyses.exists() or self.reports.exists()):
+                raise ValidationError({"farm": "A batch with laboratory history cannot be moved to another farm."})
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -150,6 +154,10 @@ class AnalysisRevision(TimeStampedModel):
     summary = models.TextField(blank=True)
     technical_notes = models.TextField(blank=True)
     recommendations = models.TextField(blank=True)
+    management_notes = models.TextField(blank=True)
+    responsible_name = models.CharField(max_length=150, blank=True)
+    professional_registration = models.CharField(max_length=100, blank=True)
+    report_date = models.DateField(null=True, blank=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="created_analysis_revisions")
 
     class Meta:
@@ -182,6 +190,10 @@ class Report(TimeStampedModel):
 
     batch = models.ForeignKey("laboratory.SampleBatch", on_delete=models.PROTECT, related_name="reports")
     analysis_revision = models.ForeignKey("laboratory.AnalysisRevision", on_delete=models.PROTECT, related_name="reports")
+    version = models.PositiveIntegerField(default=1)
+    data_snapshot = models.JSONField(default=dict, blank=True)
+    published_at = models.DateTimeField(null=True, blank=True)
+    published_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="published_reports", null=True, blank=True)
     title = models.CharField(max_length=150)
     status = models.CharField(max_length=9, choices=Status.choices, default=Status.DRAFT)
     file = models.FileField(upload_to="reports/%Y/%m/", null=True, blank=True)
@@ -190,6 +202,7 @@ class Report(TimeStampedModel):
 
     class Meta:
         indexes = [models.Index(fields=["batch", "status"], name="report_batch_status_idx")]
+        constraints = [models.UniqueConstraint(fields=["batch", "version"], name="unique_batch_report_version")]
 
     def clean(self):
         super().clean()
@@ -197,8 +210,77 @@ class Report(TimeStampedModel):
             raise ValidationError({"analysis_revision": "The revision and report must belong to the same batch."})
 
     def save(self, *args, **kwargs):
-        self.full_clean()
-        return super().save(*args, **kwargs)
+        with transaction.atomic():
+            SampleBatch.objects.select_for_update().get(pk=self.batch_id)
+            previous = type(self).objects.filter(pk=self.pk).first()
+            if previous and previous.status == self.Status.PUBLISHED:
+                raise ValidationError("Published reports cannot be modified.")
+            if self._state.adding and not previous:
+                latest = type(self).objects.filter(batch_id=self.batch_id).aggregate(value=models.Max("version"))["value"] or 0
+                self.version = max(self.version, latest + 1)
+            self.full_clean()
+            return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        with transaction.atomic():
+            current = type(self).objects.select_for_update().get(pk=self.pk)
+            if current.status != self.Status.DRAFT:
+                raise ValidationError("Only draft reports can be deleted.")
+            return super().delete(*args, **kwargs)
 
     def __str__(self):
         return self.title
+
+
+class ClinicalClassification(models.TextChoices):
+    HEALTHY = "healthy", "Healthy"
+    SUBCLINICAL = "subclinical", "Subclinical"
+    CLINICAL = "clinical", "Clinical"
+    CONTAGIOUS = "contagious", "Contagious"
+    INCONCLUSIVE = "inconclusive", "Inconclusive"
+
+
+class TechnicalAssessment(TimeStampedModel):
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="created_%(class)s_records")
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="updated_%(class)s_records", null=True, blank=True)
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+
+class SampleResultAnalysis(TechnicalAssessment):
+    sample_result = models.OneToOneField(SampleResult, on_delete=models.CASCADE, related_name="technical_analysis")
+    classification = models.CharField(max_length=12, choices=ClinicalClassification.choices)
+    interpretation = models.TextField(blank=True)
+    recommendation = models.TextField(blank=True)
+    treatment_notes = models.TextField(blank=True)
+
+
+class BatchCowAssessment(TechnicalAssessment):
+    class MilkingGroup(models.TextChoices):
+        HEALTHY = "healthy", "Healthy"
+        SUBCLINICAL = "subclinical", "Subclinical"
+        CLINICAL = "clinical", "Clinical"
+        CONTAGIOUS = "contagious", "Contagious"
+
+    batch = models.ForeignKey(SampleBatch, on_delete=models.PROTECT, related_name="cow_assessments")
+    cow = models.ForeignKey("manage.Cow", on_delete=models.PROTECT, related_name="batch_assessments")
+    clinical_status = models.CharField(max_length=12, choices=ClinicalClassification.choices)
+    general_notes = models.TextField(blank=True)
+    milking_group = models.CharField(max_length=12, choices=MilkingGroup.choices)
+    milking_position = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["batch", "cow"], name="unique_batch_cow_assessment"),
+            models.UniqueConstraint(fields=["batch", "milking_group", "milking_position"], condition=models.Q(milking_position__isnull=False), name="unique_batch_group_position"),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.cow_id and self.batch_id and self.cow.farm_id != self.batch.farm_id:
+            raise ValidationError({"cow": "A vaca e o lote devem pertencer à mesma fazenda."})

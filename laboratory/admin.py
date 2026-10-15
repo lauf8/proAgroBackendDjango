@@ -77,3 +77,14 @@ class ReportAdmin(LaboratoryAdmin):
     list_display = ("title", "batch", "analysis_revision", "status")
     search_fields = ("title", "batch__title")
     list_filter = ("status", "batch__farm")
+
+    readonly_fields = tuple(field.name for field in Report._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

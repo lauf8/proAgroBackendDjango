@@ -1,9 +1,9 @@
 from django.db import transaction
 from django.db.models import Max
-from .models import Analysis, AnalysisRevision
+from laboratory.models import Analysis, AnalysisRevision
 
 
-def create_analysis_revision(*, analysis, created_by, summary="", technical_notes="", recommendations=""):
+def create_analysis_revision(*, analysis, created_by, summary="", technical_notes="", recommendations="", management_notes="", responsible_name="", professional_registration="", report_date=None):
     database = analysis._state.db or "default"
     with transaction.atomic(using=database):
         locked_analysis = Analysis.objects.using(database).select_for_update().get(pk=analysis.pk)
@@ -16,6 +16,10 @@ def create_analysis_revision(*, analysis, created_by, summary="", technical_note
             summary=summary,
             technical_notes=technical_notes,
             recommendations=recommendations,
+            management_notes=management_notes,
+            responsible_name=responsible_name,
+            professional_registration=professional_registration,
+            report_date=report_date,
         )
         analysis.current_version = revision.version
         return revision

@@ -2,7 +2,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from rest_framework import serializers
 
-from laboratory.models import Analysis, AnalysisRevision, Microorganism, Report, Sample, SampleBatch, SampleResult
+from laboratory.models import Analysis, AnalysisRevision, Microorganism, Sample, SampleBatch, SampleResult
 from laboratory.services import create_analysis_revision
 
 
@@ -24,6 +24,8 @@ class MicroorganismSerializer(LaboratorySerializer):
 
 
 class SampleBatchSerializer(LaboratorySerializer):
+    farm_name = serializers.CharField(source="farm.name", read_only=True)
+
     class Meta:
         model = SampleBatch
         fields = "__all__"
@@ -31,6 +33,10 @@ class SampleBatchSerializer(LaboratorySerializer):
 
 
 class SampleSerializer(LaboratorySerializer):
+    cow_name = serializers.CharField(source="cow.name", read_only=True)
+    cow_identifier = serializers.CharField(source="cow.identifier", read_only=True)
+    batch_title = serializers.CharField(source="batch.title", read_only=True)
+
     class Meta:
         model = Sample
         fields = "__all__"
@@ -38,6 +44,9 @@ class SampleSerializer(LaboratorySerializer):
 
 
 class SampleResultSerializer(LaboratorySerializer):
+    sample_code = serializers.CharField(source="sample.sample_code", read_only=True)
+    microorganism_name = serializers.CharField(source="microorganism.name", read_only=True, default="")
+
     class Meta:
         model = SampleResult
         fields = "__all__"
@@ -45,6 +54,8 @@ class SampleResultSerializer(LaboratorySerializer):
 
 
 class AnalysisSerializer(LaboratorySerializer):
+    batch_title = serializers.CharField(source="batch.title", read_only=True)
+
     class Meta:
         model = Analysis
         fields = "__all__"
@@ -52,6 +63,8 @@ class AnalysisSerializer(LaboratorySerializer):
 
 
 class AnalysisRevisionSerializer(LaboratorySerializer):
+    batch_title = serializers.CharField(source="analysis.batch.title", read_only=True)
+
     class Meta:
         model = AnalysisRevision
         fields = "__all__"
@@ -70,12 +83,5 @@ class AnalysisRevisionSerializer(LaboratorySerializer):
             analysis=instance.analysis,
             created_by=self.context["request"].user,
             **{field: validated_data.get(field, getattr(instance, field))
-               for field in ("summary", "technical_notes", "recommendations")},
+               for field in ("summary", "technical_notes", "recommendations", "management_notes", "responsible_name", "professional_registration", "report_date")},
         )
-
-
-class ReportSerializer(LaboratorySerializer):
-    class Meta:
-        model = Report
-        fields = "__all__"
-        read_only_fields = ("id", "created_at", "updated_at", "created_by")

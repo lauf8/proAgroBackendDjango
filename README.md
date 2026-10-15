@@ -55,7 +55,7 @@ The first revision uses version 1. Subsequent revisions advance the version and 
 
 Email normalization follows Django's `BaseUserManager.normalize_email`, preserving the local part and lowercasing the domain. Native Groups and Permissions remain available. Users created through the basic Admin receive an unusable password; use `createsuperuser`, `changepassword`, or `UserManager` for password setup.
 
-Reports reference a specific revision. Cross-farm relationships and report batch consistency are validated with `full_clean()` on save. Important and historical references use `PROTECT`. Dependent records use `CASCADE` as specified. No report generation or PDF implementation is included.
+Reports reference a specific revision. Cross-farm relationships and report batch consistency are validated with `full_clean()` on save. Important and historical references use `PROTECT`. Dependent records use `CASCADE` as specified. Report generation, publication and snapshot history are documented below.
 
 ## Existing database preservation
 
@@ -249,10 +249,97 @@ JWT-authenticated endpoints under `/api/v1/laboratory/`:
 | AnalysisRevision | `analysis-revisions/` |
 | Report | `reports/` |
 
-Collections support GET (browse) and POST (add). Append `<uuid>/` for GET (read), PUT/PATCH (edit), and DELETE. Only superusers can write, including through Django Admin; staff status and farm roles do not grant write access. Regular users can read records belonging to farms where they have an active membership. Microorganisms are visible to these users only when referenced by results from their farms. Records outside their scope return 404. Anonymous requests return 401 and unauthorized writes return 403.
+Collections support GET (browse) and POST (add). Append `<uuid>/` for GET (read), PUT/PATCH (edit), and DELETE on general laboratory resources. Reports use the restricted workflow documented below. Only superusers can write, including through Django Admin; staff status and farm roles do not grant write access. Regular users can read records belonging to farms where they have an active membership. Microorganisms are visible to these users only when referenced by results from their farms. Records outside their scope return 404. Anonymous requests return 401 and unauthorized writes return 403.
 
 Lists use `page` and `page_size`, with 20 records by default and a maximum of 100, ordered by creation time and UUID. Creator fields, UUIDs and timestamps are assigned by the server. Revision versions and analysis current versions are managed automatically. Editing an analysis revision creates a new version and returns its new UUID; the original revision and reports referencing it remain intact. Revisions cannot be moved to another analysis. Protected deletions return 409; model validation errors return 400.
 
 ```bash
 docker compose exec -T web python manage.py test laboratory --noinput
 ```
+
+## Microbiological reports
+
+Reports now use the existing Analysis and immutable AnalysisRevision history. Saving changed general analysis creates a new revision and moves only the draft report to it. Existing revisions are never overwritten. SampleResultAnalysis stores an explicit professional assessment for each result; BatchCowAssessment stores the cow assessment and milking position within a batch. Existing farm-wide MilkingLineGroup and MilkingLineItem remain independent of historical batch assessments.
+
+Rebuild the PDF dependencies and migrate:
+
+```bash
+docker compose build web
+docker compose up -d
+docker compose exec -T web python manage.py migrate
+docker compose exec -T web python manage.py makemigrations --check
+docker compose exec -T web python manage.py check
+docker compose exec -T web python manage.py test
+```
+
+WeasyPrint uses local Django templates, Pango, HarfBuzz and DejaVu Sans. The Dockerfile installs the required Debian packages. For local Python development, install `libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core` using your OS package manager, then `pip install -r requirements.txt`. See the [WeasyPrint installation documentation](https://doc.courtbouillon.org/weasyprint/stable/first_steps.html). No external renderer or remotely loaded resource is used.
+
+Set `MEDIA_ROOT` to a writable directory; its default is `BASE_DIR / "media"`, mounted on the `report_media` Compose volume. `MEDIA_URL` is `/media/`. Reports must be delivered by the authenticated download endpoint; do not expose the reports directory through a public media server or public S3 bucket. FileField uses the configured Django storage, including private S3-compatible backends configured through Django `STORAGES`. Database values are storage keys, never absolute paths. The download endpoint opens the file through storage after authorization.
+
+Configure the laboratory using `REPORT_LABORATORY_NAME`, `REPORT_LABORATORY_CITY`, `REPORT_LABORATORY_STATE`, `REPORT_LABORATORY_CONTACT`, and `REPORT_SYSTEM_NAME`. Optionally set `REPORT_LOGO_PATH` to a trusted local PNG or JPEG file inside the container. The logo is embedded into the snapshot, and all texts are escaped. The PDF renderer allows only embedded image resources. Responsible professional name, registration and report date are entered per revision. No copied logo, signature, third-party contact, medication, dosage or automatic clinical recommendation is supplied.
+
+All endpoints below are relative to `/api/v1/laboratory/` and require JWT authentication:
+
+| Method | Path | Behavior |
+| --- | --- | --- |
+| GET | `batches/<batch-id>/report-data/` | Superuser editor data, grouped by cow; optional `?report=<id>` selects its general revision |
+| POST | `batches/<batch-id>/reports/` | Create a draft, deriving the farm from the batch |
+| GET | `reports/` | Paginated authorized reports; filters `farm`, `batch`, `status`, `date_from`, `date_to` (collection dates) |
+| POST | `reports/` | Compatibility creation endpoint; requires `batch` |
+| GET | `reports/<id>/` | Authorized report details and snapshot |
+| PATCH | `reports/<id>/` | Superuser draft update |
+| POST | `reports/<id>/generate/` | Validate and generate the immutable PDF input snapshot |
+| POST | `reports/<id>/publish/` | Publish a generated version |
+| POST | `reports/<id>/new-version/` | Create another draft using the previous general revision |
+| GET | `reports/<id>/preview/` | Escaped HTML preview; generated/published reports use their stored snapshot |
+| GET | `reports/<id>/download/` | Authorized FileResponse with PDF content type and safe attachment filename |
+
+Draft PATCH accepts `title`, `general_analysis`, `result_analyses`, and `cow_assessments`. General analysis accepts `summary`, `technical_notes`, `recommendations`, `management_notes`, `responsible_name`, `professional_registration`, and `report_date`. Each result analysis accepts `sample_result`, `classification`, `interpretation`, `recommendation`, and `treatment_notes`. Each cow assessment accepts `cow`, `clinical_status`, `general_notes`, `milking_group`, and nullable `milking_position`. All referenced results and cows must be in this batch. Duplicate positions within a group are rejected; swapping positions is supported atomically. Farm, file, snapshot, status and audit fields cannot be assigned through PATCH.
+
+Only active superusers can mutate reports or technical assessments. Staff status and membership roles do not grant these operations. Common users can only read published reports with an active FarmMembership on the batch farm. Querysets, object permission checks and sensitive services enforce access. Downloads apply the same scope before opening storage. Report DELETE is unsupported. Report Admin is inspection-only. Cancelled reports are hidden from members; cancellation is currently an internal state without a public transition endpoint.
+
+Generation requires results for all samples, individual classifications, cow clinical status and milking groups, and a responsible professional with registration. No treatment or recommendation is required or inferred. Versions are allocated under a batch lock and constrained by `(batch, version)`. Generation locks the draft, builds the snapshot with five data-loading queries, and renders only that JSON snapshot. The snapshot contains laboratory identity, property, batch, samples, quarters, all result types, individual analyses, cow assessments, ordered milking groups and general analysis. The publication service locks the generated version, sets publication audit fields and freezes it. Corrections require a new report version with a new file. Changes to live cows, results or laboratory settings cannot alter an existing PDF. Do not use bulk updates or raw SQL to bypass model immutability checks.
+
+Migration `laboratory/0002_microbiological_reports` adds the missing structures and numbers existing reports chronologically within each batch before adding the unique version constraint. It does not rewrite existing files or fabricate snapshots for legacy reports. Legacy generated/published reports without snapshots require review and a new generated version before relying on the historical snapshot guarantee.
+
+### Development example and PDF inspection
+
+With `DEBUG=True`, an existing superuser, and a development database only:
+
+```bash
+docker compose exec -T web python manage.py create_demo_report --user lab@example.com
+```
+
+This explicitly creates a separate demonstration farm, five cows, six samples from different quarters, positive/negative/inconclusive/contaminated results, multiple organisms on one cow, individual analyses, all four milking groups, and long Portuguese text. It generates a PDF without publishing it and prints its report UUID and storage key (`reports/YYYY/MM/microbiological-report-<uuid>-v1.pdf`). Re-running creates a separate example. Nothing is seeded during startup or migrations; the command refuses `DEBUG=False`.
+
+Open `/reports/<report-id>` in the React app for the preview and PDF download; `/reports/<report-id>/edit` edits drafts and `/batches/<batch-id>/report` starts a new report. Open `/reports` to select a farm and batch. The preview uses the backend HTML; the backend snapshot is always the final PDF source.
+
+To test download, authenticate and use the UI's **Baixar PDF**, or send `GET /api/v1/laboratory/reports/<report-id>/download/` with an access token supplied securely in the Authorization header. Expect `application/pdf`, an attachment filename and the `%PDF` signature. Keep credentials out of logs, shell history and shared artifacts.
+
+Copy a generated example out of the container and inspect every page with Poppler:
+
+```bash
+docker compose cp web:/code/media/reports/YYYY/MM/microbiological-report-UUID-v1.pdf /tmp/microbiological-report-example.pdf
+pdftoppm -r 120 -png /tmp/microbiological-report-example.pdf /tmp/microbiological-report-page
+pdfinfo /tmp/microbiological-report-example.pdf
+pdftotext -layout /tmp/microbiological-report-example.pdf /tmp/microbiological-report-example.txt
+```
+
+Inspect all PNGs for clipping, overlap, table width, page breaks, Portuguese characters, contrast, repeated header, footer and page numbering. A4 layout has repeating table headers, flowing content and no fixed page count. Use a further long-result case when changing table CSS.
+
+Report tests:
+
+```bash
+docker compose exec -T web python manage.py test laboratory.tests.test_reports
+docker compose exec -T web python manage.py test
+```
+
+A generated five-page example, all rendered PNGs, implementation notes and validation results are in [docs/microbiological-report-validation.md](docs/microbiological-report-validation.md).
+
+## Replace local presentation records
+
+`python manage.py reset_presentation_data --replace-operational-data` explicitly replaces operational records while preserving user accounts. It refuses `DEBUG=False`. Back up the database and media before running it. This command is intended only for a disposable local development database; it deliberately removes existing report versions and their files after the database transaction commits.
+
+The presentation dataset contains two fictional farms, fourteen named cows with ear tags, two coded batches, eighteen samples, four microorganisms, explicit result assessments, milking groups and three report states (draft, generated and published). Non-superuser accounts receive an active membership only on Fazenda Boa Esperança. These are coherent fictional records, not actual laboratory findings. No professional registration, prescription, dosage or treatment is fabricated.
+
+`GET /api/v1/farm-options/` provides farm names for selection, scoped by active memberships for regular users; it does not change permissions on the administrative farms collection. Laboratory read serializers include related display names. UUIDs remain internal API identifiers and are omitted from the PDF and download filename.

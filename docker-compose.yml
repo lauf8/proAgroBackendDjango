@@ -18,6 +18,7 @@ services:
     env_file: .env
     volumes:
       - .:/code
+      - report_media:/code/media
       - static_volume:/code/staticfiles
     expose:
       - "8000"
@@ -39,3 +40,4 @@ volumes:
   postgres_data:
   dairy_postgres_data:
   static_volume:
+  report_media:

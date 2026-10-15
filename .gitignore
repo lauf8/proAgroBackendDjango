@@ -6,3 +6,5 @@ staticfiles/
 staticfile/
 .venv/
 media/
+/docs/
+*.pdf

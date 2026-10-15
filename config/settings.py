@@ -101,7 +101,7 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = "accounts.User"
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_ROOT = Path(os.getenv("MEDIA_ROOT", str(BASE_DIR / "media")))
 MEDIA_URL = "/media/"
 
 REST_FRAMEWORK = {
@@ -119,3 +119,12 @@ SIMPLE_JWT = {
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
 }
+
+REPORT_LABORATORY = {
+    "name": os.getenv("REPORT_LABORATORY_NAME", "Laboratório"),
+    "city": os.getenv("REPORT_LABORATORY_CITY", ""),
+    "state": os.getenv("REPORT_LABORATORY_STATE", ""),
+    "contact": os.getenv("REPORT_LABORATORY_CONTACT", ""),
+    "system_name": os.getenv("REPORT_SYSTEM_NAME", "ProAgro"),
+}
+REPORT_LOGO_PATH = os.getenv("REPORT_LOGO_PATH", "")
