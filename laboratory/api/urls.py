@@ -3,10 +3,13 @@ from django.urls import path
 from laboratory.views import laboratory_views as views
 
 from laboratory.views import report_views
+from laboratory.views.chain_views import BatchChainView, SampleChainView
 
 app_name = "laboratory"
 
 urlpatterns = [
+    path("sample-batches/<uuid:pk>/chain/", BatchChainView.as_view(), name="batch_chain"),
+    path("samples/<uuid:pk>/chain/", SampleChainView.as_view(), name="sample_chain"),
     path("batches/<uuid:batch_id>/report-data/", report_views.BatchReportDataView.as_view(), name="batch_report_data"),
     path("batches/<uuid:batch_id>/reports/", report_views.ReportListCreateView.as_view(), name="batch_reports"),
     path("reports/<uuid:pk>/generate/", report_views.ReportActionView.as_view(action="generate"), name="report_generate"),
